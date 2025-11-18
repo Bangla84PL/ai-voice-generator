@@ -1,0 +1,263 @@
+{
+  "name": "Subscription Changed",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "subscription-changed",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "subscription-changed"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.NEXT_PUBLIC_APP_URL }}/api/admin/users/{{ $json.body.userId }}/credits",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ \"Bearer \" + $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "credits",
+              "value": "={{ $json.body.newCredits }}"
+            },
+            {
+              "name": "plan",
+              "value": "={{ $json.body.planName }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "update-user-credits",
+      "name": "Update User Credits",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 200]
+    },
+    {
+      "parameters": {
+        "authentication": "headerAuth",
+        "requestMethod": "POST",
+        "url": "={{ $env.EMAIL_API_URL }}/send",
+        "jsonParameters": true,
+        "options": {},
+        "headerParametersJson": "={{ { \"Authorization\": \"Bearer \" + $env.EMAIL_API_KEY, \"Content-Type\": \"application/json\" } }}",
+        "bodyParametersJson": "={{ {\n  \"from\": $env.EMAIL_FROM,\n  \"to\": $json.body.email,\n  \"subject\": \"Subscription Confirmed - AI Voice Generator\",\n  \"html\": \"<h1>Subscription Confirmed!</h1><p>Hi \" + $json.body.name + \",</p><p>Thank you for subscribing to AI Voice Generator!</p><div style='background-color: #d1fae5; padding: 16px; border-radius: 6px;'><h3>Subscription Details</h3><p><strong>Plan:</strong> \" + $json.body.planName + \"</p><p><strong>Amount:</strong> $\" + ($json.body.amount / 100).toFixed(2) + \"/\" + $json.body.interval + \"</p><p><strong>Monthly Credits:</strong> \" + $json.body.newCredits + \"</p><p><strong>Next Billing Date:</strong> \" + new Date($json.body.nextBillingDate).toLocaleDateString() + \"</p></div><h3>What's Included</h3><ul><li>\" + $json.body.newCredits + \" credits per month</li><li>Access to all voice options</li><li>Priority support</li><li>Advanced features and customization</li></ul><p><a href='\" + $json.body.manageUrl + \"'>Manage Subscription</a></p>\",\n  \"tags\": [{\"name\": \"category\", \"value\": \"subscription\"}, {\"name\": \"plan\", \"value\": $json.body.planName}]\n} }}"
+      },
+      "id": "send-confirmation-email",
+      "name": "Send Confirmation Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CRM_API_URL }}/contacts/{{ $json.body.userId }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ \"Bearer \" + $env.CRM_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "plan",
+              "value": "={{ $json.body.planName }}"
+            },
+            {
+              "name": "subscriptionStatus",
+              "value": "active"
+            },
+            {
+              "name": "monthlyValue",
+              "value": "={{ $json.body.amount }}"
+            },
+            {
+              "name": "subscriptionDate",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "update-crm",
+      "name": "Update CRM/Billing",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 400],
+      "continueOnFail": true,
+      "notes": "Optional - Update CRM with subscription details"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.ANALYTICS_API_URL }}/events",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ \"Bearer \" + $env.ANALYTICS_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "event",
+              "value": "subscription_changed"
+            },
+            {
+              "name": "userId",
+              "value": "={{ $json.body.userId }}"
+            },
+            {
+              "name": "plan",
+              "value": "={{ $json.body.planName }}"
+            },
+            {
+              "name": "amount",
+              "value": "={{ $json.body.amount }}"
+            },
+            {
+              "name": "interval",
+              "value": "={{ $json.body.interval }}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "track-subscription-event",
+      "name": "Track Subscription Event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 500],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"message\": \"Subscription workflow completed\", \"userId\": $json.body.userId, \"plan\": $json.body.planName } }}"
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [650, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Update User Credits",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Confirmation Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update CRM/Billing",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Track Subscription Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update User Credits": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Confirmation Email": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update CRM/Billing": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Track Subscription Event": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-11-18T00:00:00.000Z",
+  "versionId": "1"
+}

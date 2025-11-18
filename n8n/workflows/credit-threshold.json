@@ -1,0 +1,303 @@
+{
+  "name": "Credit Threshold Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "credit-threshold",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "credit-threshold"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.body.threshold }}",
+              "operation": "equal",
+              "value2": 80
+            }
+          ]
+        }
+      },
+      "id": "check-80-percent",
+      "name": "80% Threshold?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [450, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.body.threshold }}",
+              "operation": "equal",
+              "value2": 90
+            }
+          ]
+        }
+      },
+      "id": "check-90-percent",
+      "name": "90% Threshold?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [450, 350]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.body.threshold }}",
+              "operation": "equal",
+              "value2": 100
+            }
+          ]
+        }
+      },
+      "id": "check-100-percent",
+      "name": "100% Threshold?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [450, 500]
+    },
+    {
+      "parameters": {
+        "authentication": "headerAuth",
+        "requestMethod": "POST",
+        "url": "={{ $env.EMAIL_API_URL }}/send",
+        "jsonParameters": true,
+        "options": {},
+        "headerParametersJson": "={{ { \"Authorization\": \"Bearer \" + $env.EMAIL_API_KEY, \"Content-Type\": \"application/json\" } }}",
+        "bodyParametersJson": "={{ {\n  \"from\": $env.EMAIL_FROM,\n  \"to\": $json.body.email,\n  \"subject\": \"Credit Alert: 80% Used - AI Voice Generator\",\n  \"html\": \"<h1>Credit Balance Alert</h1><p>Hi \" + $json.body.name + \",</p><p>You've used 80% of your available credits.</p><div style='background-color: #fef3c7; padding: 16px; border-radius: 6px;'><p><strong>Current Balance:</strong> \" + $json.body.creditsRemaining + \" credits</p><p><strong>Alert Threshold:</strong> 80%</p></div><p><a href='\" + $json.body.purchaseUrl + \"'>Purchase More Credits</a></p>\",\n  \"tags\": [{\"name\": \"category\", \"value\": \"alert\"}, {\"name\": \"threshold\", \"value\": \"80\"}]\n} }}"
+      },
+      "id": "send-80-alert",
+      "name": "Send 80% Alert Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [650, 150]
+    },
+    {
+      "parameters": {
+        "authentication": "headerAuth",
+        "requestMethod": "POST",
+        "url": "={{ $env.EMAIL_API_URL }}/send",
+        "jsonParameters": true,
+        "options": {},
+        "headerParametersJson": "={{ { \"Authorization\": \"Bearer \" + $env.EMAIL_API_KEY, \"Content-Type\": \"application/json\" } }}",
+        "bodyParametersJson": "={{ {\n  \"from\": $env.EMAIL_FROM,\n  \"to\": $json.body.email,\n  \"subject\": \"⚠️ Critical: 90% Credits Used - AI Voice Generator\",\n  \"html\": \"<h1>⚠️ Critical Credit Alert</h1><p>Hi \" + $json.body.name + \",</p><p><strong>You've used 90% of your available credits.</strong></p><div style='background-color: #fef3c7; padding: 16px; border-radius: 6px; border: 2px solid #fbbf24;'><p><strong>Current Balance:</strong> \" + $json.body.creditsRemaining + \" credits</p><p><strong>Alert Threshold:</strong> 90%</p></div><p>Your service may be interrupted if you run out of credits. Please purchase more credits to continue using AI Voice Generator.</p><p><a href='\" + $json.body.purchaseUrl + \"' style='background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;'>Purchase Credits Now</a></p>\",\n  \"tags\": [{\"name\": \"category\", \"value\": \"alert\"}, {\"name\": \"threshold\", \"value\": \"90\"}]\n} }}"
+      },
+      "id": "send-90-alert",
+      "name": "Send 90% Alert Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "authentication": "headerAuth",
+        "requestMethod": "POST",
+        "url": "={{ $env.EMAIL_API_URL }}/send",
+        "jsonParameters": true,
+        "options": {},
+        "headerParametersJson": "={{ { \"Authorization\": \"Bearer \" + $env.EMAIL_API_KEY, \"Content-Type\": \"application/json\" } }}",
+        "bodyParametersJson": "={{ {\n  \"from\": $env.EMAIL_FROM,\n  \"to\": $json.body.email,\n  \"subject\": \"🚨 URGENT: Credits Depleted - AI Voice Generator\",\n  \"html\": \"<h1>🚨 Credits Depleted</h1><p>Hi \" + $json.body.name + \",</p><p><strong>You have used all of your available credits.</strong></p><div style='background-color: #fee2e2; padding: 16px; border-radius: 6px; border: 2px solid #dc2626;'><p><strong>Current Balance:</strong> \" + $json.body.creditsRemaining + \" credits</p><p><strong>Status:</strong> Service Suspended</p></div><p>Your voice generation service has been suspended. Please purchase credits to continue using AI Voice Generator.</p><p><a href='\" + $json.body.purchaseUrl + \"' style='background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;'>Purchase Credits Immediately</a></p>\",\n  \"tags\": [{\"name\": \"category\", \"value\": \"alert\"}, {\"name\": \"threshold\", \"value\": \"100\"}]\n} }}"
+      },
+      "id": "send-100-alert",
+      "name": "Send 100% Alert Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [650, 450]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $env.SLACK_WEBHOOK_URL }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "check-slack-enabled",
+      "name": "Slack Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SLACK_WEBHOOK_URL }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ \"Credit Alert: User \" + $json.body.name + \" (\" + $json.body.email + \") has reached \" + $json.body.threshold + \"% credit threshold. Credits remaining: \" + $json.body.creditsRemaining }}"
+            },
+            {
+              "name": "blocks",
+              "value": "={{ [\n  {\n    \"type\": \"header\",\n    \"text\": {\n      \"type\": \"plain_text\",\n      \"text\": \"⚠️ Credit Threshold Alert\"\n    }\n  },\n  {\n    \"type\": \"section\",\n    \"fields\": [\n      { \"type\": \"mrkdwn\", \"text\": \"*User:*\\n\" + $json.body.name },\n      { \"type\": \"mrkdwn\", \"text\": \"*Email:*\\n\" + $json.body.email },\n      { \"type\": \"mrkdwn\", \"text\": \"*Threshold:*\\n\" + $json.body.threshold + \"%\" },\n      { \"type\": \"mrkdwn\", \"text\": \"*Credits Remaining:*\\n\" + $json.body.creditsRemaining }\n    ]\n  }\n] }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-slack-notification",
+      "name": "Send Slack Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1050, 250],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"message\": \"Credit threshold alert sent\", \"threshold\": $json.body.threshold } }}"
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1250, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "80% Threshold?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "90% Threshold?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "100% Threshold?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "80% Threshold?": {
+      "main": [
+        [
+          {
+            "node": "Send 80% Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "90% Threshold?": {
+      "main": [
+        [
+          {
+            "node": "Send 90% Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "100% Threshold?": {
+      "main": [
+        [
+          {
+            "node": "Send 100% Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send 80% Alert Email": {
+      "main": [
+        [
+          {
+            "node": "Slack Enabled?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send 90% Alert Email": {
+      "main": [
+        [
+          {
+            "node": "Slack Enabled?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send 100% Alert Email": {
+      "main": [
+        [
+          {
+            "node": "Slack Enabled?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Enabled?": {
+      "main": [
+        [
+          {
+            "node": "Send Slack Notification",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Slack Notification": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-11-18T00:00:00.000Z",
+  "versionId": "1"
+}

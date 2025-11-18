@@ -1,0 +1,253 @@
+{
+  "name": "Generation Complete",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generation-complete",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "generation-complete"
+    },
+    {
+      "parameters": {
+        "authentication": "headerAuth",
+        "requestMethod": "POST",
+        "url": "={{ $env.EMAIL_API_URL }}/send",
+        "jsonParameters": true,
+        "options": {},
+        "headerParametersJson": "={{ { \"Authorization\": \"Bearer \" + $env.EMAIL_API_KEY, \"Content-Type\": \"application/json\" } }}",
+        "bodyParametersJson": "={{ {\n  \"from\": $env.EMAIL_FROM,\n  \"to\": $json.body.email,\n  \"subject\": \"Your Voice Generation is Complete\",\n  \"html\": \"<h1>Your Voice Generation is Ready!</h1><p>Hi \" + $json.body.name + \",</p><p>Your AI voice generation has been completed successfully.</p><h3>Generation Details</h3><ul><li><strong>Generation ID:</strong> \" + $json.body.generationId + \"</li><li><strong>Voice:</strong> \" + $json.body.voice + \"</li><li><strong>Credits Used:</strong> \" + $json.body.creditsUsed + \"</li><li><strong>Credits Remaining:</strong> \" + $json.body.creditsRemaining + \"</li></ul><p><a href='\" + $json.body.audioUrl + \"'>Listen Now</a> | <a href='\" + $json.body.downloadUrl + \"'>Download Audio</a></p>\",\n  \"tags\": [{\"name\": \"category\", \"value\": \"generation\"}, {\"name\": \"generation_id\", \"value\": $json.body.generationId}]\n} }}"
+      },
+      "id": "send-notification-email",
+      "name": "Send Notification Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.ANALYTICS_API_URL }}/events",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ \"Bearer \" + $env.ANALYTICS_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "event",
+              "value": "generation_complete"
+            },
+            {
+              "name": "userId",
+              "value": "={{ $json.body.userId }}"
+            },
+            {
+              "name": "generationId",
+              "value": "={{ $json.body.generationId }}"
+            },
+            {
+              "name": "voice",
+              "value": "={{ $json.body.voice }}"
+            },
+            {
+              "name": "creditsUsed",
+              "value": "={{ $json.body.creditsUsed }}"
+            },
+            {
+              "name": "duration",
+              "value": "={{ $json.body.duration }}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "update-analytics",
+      "name": "Update Analytics",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300],
+      "continueOnFail": true,
+      "notes": "Optional - Configure ANALYTICS_API_URL and ANALYTICS_API_KEY"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.customWebhookUrl }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "check-custom-webhook",
+      "name": "Check Custom Webhook",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [450, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.body.customWebhookUrl }}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "event",
+              "value": "generation.complete"
+            },
+            {
+              "name": "generationId",
+              "value": "={{ $json.body.generationId }}"
+            },
+            {
+              "name": "userId",
+              "value": "={{ $json.body.userId }}"
+            },
+            {
+              "name": "audioUrl",
+              "value": "={{ $json.body.audioUrl }}"
+            },
+            {
+              "name": "downloadUrl",
+              "value": "={{ $json.body.downloadUrl }}"
+            },
+            {
+              "name": "creditsUsed",
+              "value": "={{ $json.body.creditsUsed }}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "trigger-custom-webhook",
+      "name": "Trigger Custom Webhook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [650, 450],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": true, \"message\": \"Generation complete workflow executed\", \"generationId\": $json.body.generationId } }}"
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [850, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Send Notification Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Analytics",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Custom Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Notification Email": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Analytics": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Custom Webhook": {
+      "main": [
+        [
+          {
+            "node": "Trigger Custom Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Custom Webhook": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2025-11-18T00:00:00.000Z",
+  "versionId": "1"
+}

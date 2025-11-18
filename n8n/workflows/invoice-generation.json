@@ -1,0 +1,355 @@
+{
+  "name": "Invoice Generation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "monthDays",
+              "monthDaysValue": 1
+            }
+          ]
+        }
+      },
+      "id": "scheduled-trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300],
+      "notes": "Runs on the 1st of each month at midnight"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.NEXT_PUBLIC_APP_URL }}/api/admin/billing/monthly-usage",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ \"Bearer \" + $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "month",
+              "value": "={{ new Date(Date.now() - 30*24*60*60*1000).toISOString().slice(0, 7) }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-monthly-usage",
+      "name": "Calculate Monthly Usage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300],
+      "notes": "Fetch usage data for the previous month"
+    },
+    {
+      "parameters": {
+        "mode": "splitIntoItems",
+        "value": "={{ $json.users }}"
+      },
+      "id": "split-users",
+      "name": "Split into Users",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 3.1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.totalAmount }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "check-has-charges",
+      "name": "Has Charges?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.GOTENBERG_API_URL }}/forms/chromium/convert/html",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "files",
+              "value": "={{ Buffer.from($json.invoiceHtml).toString('base64') }}"
+            },
+            {
+              "name": "paperWidth",
+              "value": "8.5"
+            },
+            {
+              "name": "paperHeight",
+              "value": "11"
+            },
+            {
+              "name": "marginTop",
+              "value": "0.5"
+            },
+            {
+              "name": "marginBottom",
+              "value": "0.5"
+            },
+            {
+              "name": "marginLeft",
+              "value": "0.5"
+            },
+            {
+              "name": "marginRight",
+              "value": "0.5"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "generate-pdf",
+      "name": "Generate PDF with Gotenberg",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1050, 250]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.NEXT_PUBLIC_SUPABASE_URL }}/storage/v1/object/invoices/{{ $json.invoiceNumber }}.pdf",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ \"Bearer \" + $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/pdf"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "file",
+              "value": "={{ $binary.data }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "upload-pdf",
+      "name": "Upload PDF to Storage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1250, 250]
+    },
+    {
+      "parameters": {
+        "authentication": "headerAuth",
+        "requestMethod": "POST",
+        "url": "={{ $env.EMAIL_API_URL }}/send",
+        "jsonParameters": true,
+        "options": {},
+        "headerParametersJson": "={{ { \"Authorization\": \"Bearer \" + $env.EMAIL_API_KEY, \"Content-Type\": \"application/json\" } }}",
+        "bodyParametersJson": "={{ {\n  \"from\": $env.EMAIL_FROM,\n  \"to\": $json.email,\n  \"subject\": \"Invoice \" + $json.invoiceNumber + \" - AI Voice Generator\",\n  \"html\": \"<h1>Payment Receipt</h1><p>Hi \" + $json.name + \",</p><p>Thank you for your payment. Your invoice is attached.</p><div style='background-color: #f9fafb; padding: 16px; border-radius: 6px;'><p><strong>Invoice Number:</strong> \" + $json.invoiceNumber + \"</p><p><strong>Amount:</strong> $\" + ($json.totalAmount / 100).toFixed(2) + \"</p><p><strong>Period:</strong> \" + $json.billingPeriod + \"</p></div><p><a href='\" + $json.invoicePdfUrl + \"'>Download PDF Invoice</a></p>\",\n  \"attachments\": [\n    {\n      \"filename\": \"invoice-\" + $json.invoiceNumber + \".pdf\",\n      \"content\": $binary.data.toString('base64'),\n      \"type\": \"application/pdf\"\n    }\n  ],\n  \"tags\": [{\"name\": \"category\", \"value\": \"invoice\"}, {\"name\": \"invoice_number\", \"value\": $json.invoiceNumber}]\n} }}"
+      },
+      "id": "email-invoice",
+      "name": "Email Invoice",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1450, 250]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.NEXT_PUBLIC_APP_URL }}/api/admin/invoices",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ \"Bearer \" + $env.SUPABASE_SERVICE_ROLE_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "userId",
+              "value": "={{ $json.userId }}"
+            },
+            {
+              "name": "invoiceNumber",
+              "value": "={{ $json.invoiceNumber }}"
+            },
+            {
+              "name": "amount",
+              "value": "={{ $json.totalAmount }}"
+            },
+            {
+              "name": "pdfUrl",
+              "value": "={{ $json.invoicePdfUrl }}"
+            },
+            {
+              "name": "billingPeriod",
+              "value": "={{ $json.billingPeriod }}"
+            },
+            {
+              "name": "status",
+              "value": "sent"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "save-invoice-record",
+      "name": "Save Invoice Record",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1650, 250]
+    },
+    {
+      "parameters": {},
+      "id": "no-op",
+      "name": "No Charges - Skip",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1050, 350]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Calculate Monthly Usage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Monthly Usage": {
+      "main": [
+        [
+          {
+            "node": "Split into Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split into Users": {
+      "main": [
+        [
+          {
+            "node": "Has Charges?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Charges?": {
+      "main": [
+        [
+          {
+            "node": "Generate PDF with Gotenberg",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Charges - Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate PDF with Gotenberg": {
+      "main": [
+        [
+          {
+            "node": "Upload PDF to Storage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload PDF to Storage": {
+      "main": [
+        [
+          {
+            "node": "Email Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Invoice": {
+      "main": [
+        [
+          {
+            "node": "Save Invoice Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "timezone": "America/New_York"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "id": "billing",
+      "name": "Billing"
+    },
+    {
+      "id": "scheduled",
+      "name": "Scheduled"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2025-11-18T00:00:00.000Z",
+  "versionId": "1"
+}
