@@ -1,0 +1,132 @@
+# =============================================================================
+# AI Voice Generator - Docker Compose Configuration
+# =============================================================================
+# Production deployment with Traefik reverse proxy
+# =============================================================================
+
+version: '3.9'
+
+services:
+  # ---------------------------------------------------------------------------
+  # Voice Generator Application
+  # ---------------------------------------------------------------------------
+  voice-generator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - NODE_ENV=production
+
+    container_name: ai-voice-generator
+
+    restart: unless-stopped
+
+    # Environment variables
+    env_file:
+      - .env.production
+
+    environment:
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+
+    # Expose port (internal only, accessed via Traefik)
+    expose:
+      - "3000"
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Networks
+    networks:
+      - traefik-public
+      - internal
+
+    # Labels for Traefik
+    labels:
+      # Enable Traefik
+      - "traefik.enable=true"
+
+      # Docker network
+      - "traefik.docker.network=traefik-public"
+
+      # HTTP Router
+      - "traefik.http.routers.voice-generator-http.rule=Host(`voice.smartcamp.ai`)"
+      - "traefik.http.routers.voice-generator-http.entrypoints=web"
+      - "traefik.http.routers.voice-generator-http.middlewares=https-redirect"
+
+      # HTTPS Router
+      - "traefik.http.routers.voice-generator.rule=Host(`voice.smartcamp.ai`)"
+      - "traefik.http.routers.voice-generator.entrypoints=websecure"
+      - "traefik.http.routers.voice-generator.tls=true"
+      - "traefik.http.routers.voice-generator.tls.certresolver=letsencrypt"
+
+      # Service
+      - "traefik.http.services.voice-generator.loadbalancer.server.port=3000"
+
+      # Middleware for HTTPS redirect
+      - "traefik.http.middlewares.https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.https-redirect.redirectscheme.permanent=true"
+
+      # Security headers
+      - "traefik.http.middlewares.voice-security-headers.headers.framedeny=true"
+      - "traefik.http.middlewares.voice-security-headers.headers.sslredirect=true"
+      - "traefik.http.middlewares.voice-security-headers.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.voice-security-headers.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.voice-security-headers.headers.stsPreload=true"
+      - "traefik.http.middlewares.voice-security-headers.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.voice-security-headers.headers.browserXssFilter=true"
+      - "traefik.http.middlewares.voice-security-headers.headers.referrerPolicy=strict-origin-when-cross-origin"
+      - "traefik.http.middlewares.voice-security-headers.headers.customResponseHeaders.X-Robots-Tag=index,follow"
+
+      # Apply security headers middleware
+      - "traefik.http.routers.voice-generator.middlewares=voice-security-headers"
+
+      # Rate limiting (optional)
+      - "traefik.http.middlewares.voice-ratelimit.ratelimit.average=100"
+      - "traefik.http.middlewares.voice-ratelimit.ratelimit.burst=50"
+
+      # Compress responses
+      - "traefik.http.middlewares.voice-compress.compress=true"
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  # External network for Traefik
+  traefik-public:
+    external: true
+
+  # Internal network for service-to-service communication
+  internal:
+    driver: bridge
+
+# =============================================================================
+# Volumes (if needed for persistent data)
+# =============================================================================
+volumes:
+  voice-generator-data:
+    driver: local
