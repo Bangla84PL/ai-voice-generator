@@ -102,10 +102,10 @@ NEXT_PUBLIC_APP_NAME="AI Voice Generator"
 # ==============================================
 # Get these from Supabase project settings
 NEXT_PUBLIC_SUPABASE_URL=https://api.supabase.smartcamp.ai
-NEXT_PUBLIC_SUPABASE_ANON_KEY=***REDACTED_SUPABASE_ANON_KEY***
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
 
 # Service role key (keep secret!)
-SUPABASE_SERVICE_ROLE_KEY=***REDACTED_SUPABASE_SERVICE_KEY***
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
 
 # JWT secret (same as Supabase)
 SUPABASE_JWT_SECRET=your-super-secret-jwt-secret-minimum-32-characters-long
